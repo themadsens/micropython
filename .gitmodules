@@ -56,6 +56,7 @@
 [submodule "lib/micropython-lib"]
 	path = lib/micropython-lib
 	url = https://github.com/micropython/micropython-lib.git
+	url = https://github.com/micropython/micropython-lib.git
 [submodule "ports/esp32/MicroWebSrv"]
 	path = ports/esp32/MicroWebSrv
 	url = https://github.com/jczic/MicroWebSrv.git
