@@ -56,3 +56,14 @@
 [submodule "lib/micropython-lib"]
 	path = lib/micropython-lib
 	url = https://github.com/micropython/micropython-lib.git
+[submodule "ports/esp32/MicroWebSrv"]
+	path = ports/esp32/MicroWebSrv
+	url = https://github.com/jczic/MicroWebSrv.git
+[submodule "ports/esp32/ili9342c_mpy"]
+	path = ports/esp32/ili9342c_mpy
+	url = https://github.com/russhughes/ili9342c_mpy.git
+[submodule "ports/esp32/micropython-png"]
+	path = ports/esp32/micropython-png
+	url = https://github.com/Ratfink/micropython-png.git
+[submodule "ports/esp32/micropython-lib"]
+	path = ports/esp32/micropython-lib

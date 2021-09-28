@@ -23,3 +23,7 @@ user.props
 
 # MacOS desktop metadata files
 .DS_Store
+
+esp-idf/
+esp-idf
+tags

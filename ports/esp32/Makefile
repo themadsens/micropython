@@ -2,6 +2,10 @@
 #
 # This is a simple, convenience wrapper around idf.py (which uses cmake).
 
+ifneq (,$(wildcard ./my-settings.mk))
+include my-settings.mk
+endif
+#
 # Select the board to build for, defaulting to GENERIC.
 BOARD ?= GENERIC
 
@@ -52,10 +56,24 @@ clean:
 	idf.py $(IDFPY_FLAGS) fullclean
 
 deploy:
-	idf.py $(IDFPY_FLAGS) -p $(PORT) -b $(BAUD) flash
+	idf.py $(IDFPY_FLAGS) --port $(PORT) --baud $(BAUD) flash
 
-erase:
-	idf.py $(IDFPY_FLAGS) -p $(PORT) -b $(BAUD) erase_flash
+flash erase bootloader-flash erase_flash erase_otadata size size-components size-files:
+	idf.py $(IDFPY_FLAGS) --port $(PORT) --baud $(BAUD) $@
+
+PART_CSV = $(shell awk  -F '"' '/^CONFIG_PARTITION_TABLE_FILENAME=/ {print $$2}' $(BUILD)/sdkconfig)
+VFS_SIZE = $(shell awk -F , '/^vfs/ {print $$5}' $(PART_CSV))
+VFS_OFFSET = $(shell awk -F , '/^vfs/ {print $$4}' $(PART_CSV))
+flashfs:
+	# Partition table hardcoded for now (partitions-custom.csv)
+	mklittlefs -s $(VFS_SIZE) -c lfs-root $(BUILD)/lfs.bin
+	esptool.py --port $(PORT) --baud $(BAUD) write_flash $(VFS_OFFSET) $(BUILD)/lfs.bin
+
+monitor:
+	idf_monitor.py --port $(PORT) --eol CRLF $(BUILD)/micropython.elf
+
+mon:
+	python -m serial.tools.miniterm --rts 0 --dtr 0 --raw $(PORT) 115200
 
 submodules:
 	$(MAKE) -f ../../py/mkrules.mk GIT_SUBMODULES="$(GIT_SUBMODULES)" submodules
