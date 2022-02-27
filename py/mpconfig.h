@@ -28,7 +28,7 @@
 
 // Current version of MicroPython
 #define MICROPY_VERSION_MAJOR 1
-#define MICROPY_VERSION_MINOR 17
+#define MICROPY_VERSION_MINOR 18
 #define MICROPY_VERSION_MICRO 0
 
 // Combined version as a 32-bit number for convenience
@@ -326,6 +326,14 @@
 // This is enabled automatically when needed by other features
 #ifndef MICROPY_PERSISTENT_CODE
 #define MICROPY_PERSISTENT_CODE (MICROPY_PERSISTENT_CODE_LOAD || MICROPY_PERSISTENT_CODE_SAVE || MICROPY_MODULE_FROZEN_MPY)
+#endif
+
+// Whether bytecode uses a qstr_table to map internal qstr indices in the bytecode
+// to global qstr values in the runtime (behaviour when feature is enabled), or
+// just stores global qstr values directly in the bytecode.  This must be enabled
+// if MICROPY_PERSISTENT_CODE is enabled.
+#ifndef MICROPY_EMIT_BYTECODE_USES_QSTR_TABLE
+#define MICROPY_EMIT_BYTECODE_USES_QSTR_TABLE (MICROPY_PERSISTENT_CODE)
 #endif
 
 // Whether to emit x64 native code
@@ -1221,6 +1229,11 @@ typedef double mp_float_t;
 #define MICROPY_PY_MATH (MICROPY_CONFIG_ROM_LEVEL_AT_LEAST_CORE_FEATURES)
 #endif
 
+// Whether to provide all math module constants (Python 3.5+), or just pi and e.
+#ifndef MICROPY_PY_MATH_CONSTANTS
+#define MICROPY_PY_MATH_CONSTANTS (MICROPY_CONFIG_ROM_LEVEL_AT_LEAST_EXTRA_FEATURES)
+#endif
+
 // Whether to provide special math functions: math.{erf,erfc,gamma,lgamma}
 #ifndef MICROPY_PY_MATH_SPECIAL_FUNCTIONS
 #define MICROPY_PY_MATH_SPECIAL_FUNCTIONS (MICROPY_CONFIG_ROM_LEVEL_AT_LEAST_EXTRA_FEATURES)
@@ -1552,7 +1565,10 @@ typedef double mp_float_t;
 
 #ifndef MICROPY_PY_USSL
 #define MICROPY_PY_USSL (0)
+#endif
+
 // Whether to add finaliser code to ussl objects
+#ifndef MICROPY_PY_USSL_FINALISER
 #define MICROPY_PY_USSL_FINALISER (0)
 #endif
 
@@ -1579,6 +1595,12 @@ typedef double mp_float_t;
 // Additional builtin function definitions - see modbuiltins.c:mp_module_builtins_globals_table for format.
 #ifndef MICROPY_PORT_BUILTINS
 #define MICROPY_PORT_BUILTINS
+#endif
+
+// Additional builtin function definitions for extension by command-line, boards or variants.
+// See modbuiltins.c:mp_module_builtins_globals_table for format.
+#ifndef MICROPY_PORT_EXTRA_BUILTINS
+#define MICROPY_PORT_EXTRA_BUILTINS
 #endif
 
 // Additional builtin module definitions - see objmodule.c:mp_builtin_module_table for format.
