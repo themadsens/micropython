@@ -163,6 +163,7 @@ struct mp_bluetooth_nimble_root_pointers_t;
 
 #define MICROPY_PORT_ROOT_POINTERS \
     const char *readline_hist[8]; \
+    mp_obj_t esp32_event_poll_hook_func; \
     mp_obj_t machine_pin_irq_handler[40]; \
     struct _machine_timer_obj_t *machine_timer_obj_head; \
     struct _machine_i2s_obj_t *machine_i2s_obj[I2S_NUM_MAX]; \
@@ -194,6 +195,7 @@ void *esp_native_code_commit(void *, size_t, void *);
         extern void mp_handle_pending(bool); \
         mp_handle_pending(true); \
         MICROPY_PY_USOCKET_EVENTS_HANDLER \
+        extern void esp32_event_poll_hook(void); esp32_event_poll_hook(); \
         MP_THREAD_GIL_EXIT(); \
         MP_THREAD_GIL_ENTER(); \
     } while (0);
@@ -203,6 +205,7 @@ void *esp_native_code_commit(void *, size_t, void *);
         extern void mp_handle_pending(bool); \
         mp_handle_pending(true); \
         MICROPY_PY_USOCKET_EVENTS_HANDLER \
+        extern void esp32_event_poll_hook(void); esp32_event_poll_hook(); \
         asm ("waiti 0"); \
     } while (0);
 #endif
