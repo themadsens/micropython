@@ -1,6 +1,18 @@
 import uos
 from flashbdev import bdev
 
+import esp32
+import uasyncio
+
+async def loop_coro(timeout):
+    await uasyncio.sleep_ms(timeout)
+
+def async_hook(_):
+    uasyncio.run(loop_coro(1))
+
+def install_async_hook():
+    esp32.set_event_poll_hook(async_hook)
+
 
 def check_bootsec():
     buf = bytearray(bdev.ioctl(5, 0))  # 5 is SEC_SIZE
@@ -44,6 +56,8 @@ def setup():
 #esp.osdebug(None)
 #import webrepl
 #webrepl.start()
+#from inisetup import install_async_hook
+#install_async_hook()
 """
         )
     return vfs

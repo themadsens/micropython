@@ -200,6 +200,20 @@ STATIC mp_obj_t esp32_idf_heap_info(const mp_obj_t cap_in) {
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(esp32_idf_heap_info_obj, esp32_idf_heap_info);
 
+STATIC mp_obj_t esp32_set_event_poll_hook(const mp_obj_t event_poll_hook) {
+    if (event_poll_hook != mp_const_none && !mp_obj_is_fun(event_poll_hook))
+        mp_raise_TypeError(MP_ERROR_TEXT("'append' must be a function"));
+    MP_STATE_PORT(esp32_event_poll_hook_func) = event_poll_hook;
+
+    return mp_const_none;
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(esp32_set_event_poll_hook_obj, esp32_set_event_poll_hook);
+
+void esp32_event_poll_hook(void) {
+    if (MP_STATE_PORT(esp32_event_poll_hook_func) && MP_STATE_PORT(esp32_event_poll_hook_func) != mp_const_none)
+        mp_sched_schedule(MP_STATE_PORT(esp32_event_poll_hook_func), mp_const_none);
+}
+
 STATIC const mp_rom_map_elem_t esp32_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR___name__), MP_ROM_QSTR(MP_QSTR_esp32) },
 
@@ -213,6 +227,7 @@ STATIC const mp_rom_map_elem_t esp32_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_hall_sensor), MP_ROM_PTR(&esp32_hall_sensor_obj) },
     #endif
     { MP_ROM_QSTR(MP_QSTR_idf_heap_info), MP_ROM_PTR(&esp32_idf_heap_info_obj) },
+    { MP_ROM_QSTR(MP_QSTR_set_event_poll_hook), MP_ROM_PTR(&esp32_set_event_poll_hook_obj) },
 
     { MP_ROM_QSTR(MP_QSTR_NVS), MP_ROM_PTR(&esp32_nvs_type) },
     { MP_ROM_QSTR(MP_QSTR_Partition), MP_ROM_PTR(&esp32_partition_type) },

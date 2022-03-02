@@ -137,6 +137,25 @@
 
 #define MP_STATE_PORT MP_STATE_VM
 
+#if 0 // INVESTIGATE
+struct _machine_timer_obj_t;
+
+#if MICROPY_BLUETOOTH_NIMBLE
+struct mp_bluetooth_nimble_root_pointers_t;
+#define MICROPY_PORT_ROOT_POINTER_BLUETOOTH_NIMBLE struct _mp_bluetooth_nimble_root_pointers_t *bluetooth_nimble_root_pointers;
+#else
+#define MICROPY_PORT_ROOT_POINTER_BLUETOOTH_NIMBLE
+#endif
+
+#define MICROPY_PORT_ROOT_POINTERS \
+    const char *readline_hist[8]; \
+    mp_obj_t esp32_event_poll_hook_func; \
+    mp_obj_t machine_pin_irq_handler[40]; \
+    struct _machine_timer_obj_t *machine_timer_obj_head; \
+    struct _machine_i2s_obj_t *machine_i2s_obj[I2S_NUM_MAX]; \
+    MICROPY_PORT_ROOT_POINTER_BLUETOOTH_NIMBLE
+
+#endif
 // type definitions for the specific machine
 
 #define MICROPY_MAKE_POINTER_CALLABLE(p) ((void *)((mp_uint_t)(p)))
@@ -163,6 +182,7 @@ void *esp_native_code_commit(void *, size_t, void *);
         extern void mp_handle_pending(bool); \
         mp_handle_pending(true); \
         MICROPY_PY_USOCKET_EVENTS_HANDLER \
+        extern void esp32_event_poll_hook(void); esp32_event_poll_hook(); \
         MP_THREAD_GIL_EXIT(); \
         ulTaskNotifyTake(pdFALSE, 1); \
         MP_THREAD_GIL_ENTER(); \
@@ -173,6 +193,7 @@ void *esp_native_code_commit(void *, size_t, void *);
         extern void mp_handle_pending(bool); \
         mp_handle_pending(true); \
         MICROPY_PY_USOCKET_EVENTS_HANDLER \
+        extern void esp32_event_poll_hook(void); esp32_event_poll_hook(); \
         asm ("waiti 0"); \
     } while (0);
 #endif
