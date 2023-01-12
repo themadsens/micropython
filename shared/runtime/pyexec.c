@@ -673,6 +673,7 @@ friendly_repl_reset:
         if (ret & PYEXEC_FORCED_EXIT) {
             return ret;
         }
+        MICROPY_READLINE_PUSH_HOOK
     }
 }
 

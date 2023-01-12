@@ -606,6 +606,16 @@
 #define MICROPY_SCHED_HOOK_SCHEDULED
 #endif
 
+// Hook for initalizing readline history from storage
+#ifndef MICROPY_READLINE_INIT_HOOK
+#define MICROPY_READLINE_INIT_HOOK
+#endif
+
+// Hook for pushing readline history to storage
+#ifndef MICROPY_READLINE_PUSH_HOOK
+#define MICROPY_READLINE_PUSH_HOOK
+#endif
+
 // Whether to include the garbage collector
 #ifndef MICROPY_ENABLE_GC
 #define MICROPY_ENABLE_GC (0)
