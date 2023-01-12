@@ -160,6 +160,21 @@ STATIC mp_obj_t esp32_hall_sensor(void) {
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_0(esp32_hall_sensor_obj, esp32_hall_sensor);
 
+STATIC mp_obj_t esp32_tasks(void) {
+  const size_t bytes_per_task = 50; /* see vTaskList description */
+  char* task_list_buffer = m_malloc((uxTaskGetNumberOfTasks() + 1) * bytes_per_task);
+  strcpy(task_list_buffer, "Task Name\tStatus\tPrio\tHW/Free\tTaskID"
+#ifdef CONFIG_FREERTOS_VTASKLIST_INCLUDE_COREID
+  "\tCore"
+#endif
+  "\n");
+  vTaskList(task_list_buffer + strlen(task_list_buffer));
+  mp_obj_t ret = mp_obj_new_str(task_list_buffer, strlen(task_list_buffer));
+  m_free(task_list_buffer);
+  return ret;
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_0(esp32_tasks_obj, esp32_tasks);
+
 #endif
 
 STATIC mp_obj_t esp32_idf_heap_info(const mp_obj_t cap_in) {
@@ -268,6 +283,7 @@ STATIC const mp_rom_map_elem_t esp32_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_hall_sensor), MP_ROM_PTR(&esp32_hall_sensor_obj) },
     #endif
     { MP_ROM_QSTR(MP_QSTR_idf_heap_info), MP_ROM_PTR(&esp32_idf_heap_info_obj) },
+    { MP_ROM_QSTR(MP_QSTR_tasks), MP_ROM_PTR(&esp32_tasks_obj) },
     { MP_ROM_QSTR(MP_QSTR_set_readline_hooks), MP_ROM_PTR(&esp32_set_readline_hooks_obj) },
     { MP_ROM_QSTR(MP_QSTR_set_event_poll_hook), MP_ROM_PTR(&esp32_set_event_poll_hook_obj) },
 
