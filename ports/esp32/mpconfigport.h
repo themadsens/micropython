@@ -161,8 +161,14 @@ struct mp_bluetooth_nimble_root_pointers_t;
 #define MICROPY_PORT_ROOT_POINTER_BLUETOOTH_NIMBLE
 #endif
 
+#ifndef MICROPY_READLINE_NUMHIST
+#define MICROPY_READLINE_NUMHIST 8
+#endif
+
 #define MICROPY_PORT_ROOT_POINTERS \
-    const char *readline_hist[8]; \
+    const char *readline_hist[MICROPY_READLINE_NUMHIST]; \
+    mp_obj_t readline_hook_init_func; \
+    mp_obj_t readline_hook_push_func; \
     mp_obj_t esp32_event_poll_hook_func; \
     mp_obj_t machine_pin_irq_handler[40]; \
     struct _machine_timer_obj_t *machine_timer_obj_head; \
@@ -209,6 +215,9 @@ void *esp_native_code_commit(void *, size_t, void *);
         asm ("waiti 0"); \
     } while (0);
 #endif
+
+#define MICROPY_READLINE_INIT_HOOK extern void esp32_readline_init_hook(void); esp32_readline_init_hook();
+#define MICROPY_READLINE_PUSH_HOOK extern void esp32_readline_push_hook(void); esp32_readline_push_hook();
 
 // Functions that should go in IRAM
 #define MICROPY_WRAP_MP_BINARY_OP(f) IRAM_ATTR f

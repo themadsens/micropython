@@ -40,6 +40,7 @@
 #include "py/runtime.h"
 #include "py/mphal.h"
 #include "shared/timeutils/timeutils.h"
+#include "shared/readline/readline.h"
 #include "modmachine.h"
 #include "machine_rtc.h"
 #include "modesp32.h"
@@ -50,6 +51,8 @@
 #include "../multi_heap_platform.h"
 #endif
 #include "../heap_private.h"
+
+#define READLINE_HIST_SIZE (MP_ARRAY_SIZE(MP_STATE_PORT(readline_hist)))
 
 STATIC mp_obj_t esp32_wake_on_touch(const mp_obj_t wake) {
 
@@ -181,14 +184,73 @@ STATIC mp_obj_t esp32_idf_heap_info(const mp_obj_t cap_in) {
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(esp32_idf_heap_info_obj, esp32_idf_heap_info);
 
+STATIC mp_obj_t esp32_set_readline_hooks(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
+    enum {ARG_init, ARG_append};
+    const mp_arg_t allowed_args[] = {
+        { MP_QSTR_init,  MP_ARG_OBJ, {.u_obj = mp_const_none} },
+        { MP_QSTR_append,  MP_ARG_OBJ, {.u_obj = mp_const_none} },
+    };
+    mp_arg_val_t args[MP_ARRAY_SIZE(allowed_args)];
+    mp_arg_parse_all(n_args, pos_args, kw_args, MP_ARRAY_SIZE(allowed_args), allowed_args, args);
+
+    if (args[ARG_init].u_obj != mp_const_none && !mp_obj_is_fun(args[ARG_init].u_obj))
+        mp_raise_TypeError(MP_ERROR_TEXT("'init' must be a function"));
+    if (args[ARG_append].u_obj != mp_const_none && !mp_obj_is_fun(args[ARG_append].u_obj))
+        mp_raise_TypeError(MP_ERROR_TEXT("'append' must be a function"));
+    MP_STATE_PORT(readline_hook_init_func) = args[ARG_init].u_obj;
+    MP_STATE_PORT(readline_hook_push_func) = args[ARG_append].u_obj;
+
+    return mp_const_none;
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_KW(esp32_set_readline_hooks_obj, 0, esp32_set_readline_hooks);
+
 STATIC mp_obj_t esp32_set_event_poll_hook(const mp_obj_t event_poll_hook) {
     if (event_poll_hook != mp_const_none && !mp_obj_is_fun(event_poll_hook))
-        mp_raise_TypeError(MP_ERROR_TEXT("'append' must be a function"));
+        mp_raise_TypeError(MP_ERROR_TEXT("'event_poll_hook' must be a function"));
     MP_STATE_PORT(esp32_event_poll_hook_func) = event_poll_hook;
 
     return mp_const_none;
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(esp32_set_event_poll_hook_obj, esp32_set_event_poll_hook);
+
+// Supposedly restore persisted history
+void esp32_readline_init_hook(void) {
+    if (MP_STATE_PORT(readline_hook_init_func) && MP_STATE_PORT(readline_hook_init_func) != mp_const_none) {
+        nlr_buf_t nlr;
+        if (nlr_push(&nlr) == 0) {
+            mp_obj_t lines = mp_call_function_0(MP_STATE_PORT(readline_hook_init_func));
+
+            if (lines && (mp_obj_is_type(lines, &mp_type_array) || mp_obj_is_type(lines, &mp_type_list))) {
+                size_t len;
+                const mp_obj_t *items;
+                if (mp_obj_is_type(lines, &mp_type_array))
+                    mp_obj_get_array(lines, &len, (mp_obj_t **)&items);
+                else
+                    mp_obj_list_get(lines, &len, (mp_obj_t **)&items);
+                int ix = len - 1 - READLINE_HIST_SIZE;
+
+                for (ix = ix < 0 ? 0 : ix; ix < len; ix++) {
+                    const char *lptr = mp_obj_str_get_str(items[ix]);
+                    readline_push_history(lptr);
+                }
+            }
+            nlr_pop();
+        } else {
+            mp_obj_print_exception(&mp_plat_print, MP_OBJ_FROM_PTR(nlr.ret_val));
+        }
+    }
+}
+
+// Append to (persisted) history
+void esp32_readline_push_hook(void) {
+    static const char *prev_hist = NULL;
+    const char *s = MP_STATE_PORT(readline_hist)[0];
+
+    if (s != prev_hist && MP_STATE_PORT(readline_hook_push_func) && MP_STATE_PORT(readline_hook_push_func) != mp_const_none) {
+        mp_call_function_1_protected(MP_STATE_PORT(readline_hook_push_func), mp_obj_new_str(s, strlen(s)));
+        prev_hist = s;
+    }
+}
 
 void esp32_event_poll_hook(void) {
     if (MP_STATE_PORT(esp32_event_poll_hook_func) && MP_STATE_PORT(esp32_event_poll_hook_func) != mp_const_none)
@@ -206,6 +268,7 @@ STATIC const mp_rom_map_elem_t esp32_module_globals_table[] = {
     { MP_ROM_QSTR(MP_QSTR_hall_sensor), MP_ROM_PTR(&esp32_hall_sensor_obj) },
     #endif
     { MP_ROM_QSTR(MP_QSTR_idf_heap_info), MP_ROM_PTR(&esp32_idf_heap_info_obj) },
+    { MP_ROM_QSTR(MP_QSTR_set_readline_hooks), MP_ROM_PTR(&esp32_set_readline_hooks_obj) },
     { MP_ROM_QSTR(MP_QSTR_set_event_poll_hook), MP_ROM_PTR(&esp32_set_event_poll_hook_obj) },
 
     { MP_ROM_QSTR(MP_QSTR_NVS), MP_ROM_PTR(&esp32_nvs_type) },
