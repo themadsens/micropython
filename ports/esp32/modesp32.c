@@ -238,6 +238,7 @@ STATIC mp_obj_t esp32_set_readline_hooks(size_t n_args, const mp_obj_t *pos_args
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_KW(esp32_set_readline_hooks_obj, 0, esp32_set_readline_hooks);
 
+MP_REGISTER_ROOT_POINTER(mp_obj_t esp32_event_poll_hook_func);
 STATIC mp_obj_t esp32_set_event_poll_hook(const mp_obj_t event_poll_hook) {
     if (event_poll_hook != mp_const_none && !mp_obj_is_fun(event_poll_hook))
         mp_raise_TypeError(MP_ERROR_TEXT("'event_poll_hook' must be a function"));
