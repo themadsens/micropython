@@ -137,31 +137,6 @@
 
 #define MP_STATE_PORT MP_STATE_VM
 
-#if 0 // INVESTIGATE
-struct _machine_timer_obj_t;
-
-#if MICROPY_BLUETOOTH_NIMBLE
-struct mp_bluetooth_nimble_root_pointers_t;
-#define MICROPY_PORT_ROOT_POINTER_BLUETOOTH_NIMBLE struct _mp_bluetooth_nimble_root_pointers_t *bluetooth_nimble_root_pointers;
-#else
-#define MICROPY_PORT_ROOT_POINTER_BLUETOOTH_NIMBLE
-#endif
-
-#ifndef MICROPY_READLINE_NUMHIST
-#define MICROPY_READLINE_NUMHIST 8
-#endif
-
-#define MICROPY_PORT_ROOT_POINTERS \
-    const char *readline_hist[MICROPY_READLINE_NUMHIST]; \
-    mp_obj_t readline_hook_init_func; \
-    mp_obj_t readline_hook_push_func; \
-    mp_obj_t esp32_event_poll_hook_func; \
-    mp_obj_t machine_pin_irq_handler[40]; \
-    struct _machine_timer_obj_t *machine_timer_obj_head; \
-    struct _machine_i2s_obj_t *machine_i2s_obj[I2S_NUM_MAX]; \
-    MICROPY_PORT_ROOT_POINTER_BLUETOOTH_NIMBLE
-
-#endif
 // type definitions for the specific machine
 
 #define MICROPY_MAKE_POINTER_CALLABLE(p) ((void *)((mp_uint_t)(p)))
