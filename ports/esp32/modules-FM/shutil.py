@@ -1,1 +1,1 @@
-../micropython-lib/python-stdlib/shutil/shutil.py
+../../../lib/micropython-lib/python-stdlib/shutil/shutil.py

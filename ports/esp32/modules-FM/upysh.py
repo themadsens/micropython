@@ -1,1 +1,1 @@
-../micropython-lib/micropython/upysh/upysh.py
+../../../lib/micropython-lib/micropython/upysh/upysh.py

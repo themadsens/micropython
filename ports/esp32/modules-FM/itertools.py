@@ -1,1 +1,1 @@
-../micropython-lib/python-stdlib/itertools/itertools.py
+../../../lib/micropython-lib/python-stdlib/itertools/itertools.py

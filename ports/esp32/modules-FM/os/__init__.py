@@ -1,1 +1,1 @@
-../../micropython-lib/python-stdlib/os/os/__init__.py
+../../../../lib/micropython-lib/python-stdlib/os/os/__init__.py
