@@ -10,9 +10,8 @@ toasters.py
     https://learn.adafruit.com/circuitpython-sprite-animation-pendant-mario-clouds-flying-toasters
 '''
 
-import time
 import random
-from machine import Pin, SPI
+import uasyncio
 import ili9342c
 from . import t1,t2,t3,t4,t5
 
@@ -42,66 +41,40 @@ class toast():
         self.x -= self.speed
 
 
-def main():
+async def run_asynch(dpy):
     '''
     Draw and move sprite
     '''
-    try:
 
-        spi = SPI(2, baudrate=60000000, sck=Pin(18), mosi=Pin(23))
+    # create toast spites in random positions
+    sprites = [
+        toast(TOASTERS, 320-64, 0),
+        toast(TOAST, 320-64*2, 80),
+        toast(TOASTERS, 320-64*4, 160)]
 
-        # initialize display
+    # move and draw sprites
+    while True:
+        for man in sprites:
+            bitmap = man.sprites[man.step]
+            dpy.fill_rect(
+                man.x+bitmap.WIDTH-man.speed,
+                man.y,
+                man.speed,
+                bitmap.HEIGHT,
+                ili9342c.BLACK)
 
-        tft = ili9342c.ILI9342C(
-            spi,
-            320,
-            240,
-            reset=Pin(33, Pin.OUT),
-            cs=Pin(14, Pin.OUT),
-            dc=Pin(27, Pin.OUT),
-            backlight=Pin(32, Pin.OUT),
-            rotation=0,
-            buffer_size=64*64*2)
+            man.move()
 
-        # enable display and clear screen
-        tft.init()
-        tft.fill(ili9342c.BLACK)
-
-        # create toast spites in random positions
-        sprites = [
-            toast(TOASTERS, 320-64, 0),
-            toast(TOAST, 320-64*2, 80),
-            toast(TOASTERS, 320-64*4, 160)]
-
-        # move and draw sprites
-        while True:
-            for man in sprites:
-                bitmap = man.sprites[man.step]
-                tft.fill_rect(
-                    man.x+bitmap.WIDTH-man.speed,
+            if man.x > 0:
+                dpy.bitmap(bitmap, man.x, man.y)
+            else:
+                dpy.fill_rect(
+                    0,
                     man.y,
-                    man.speed,
+                    bitmap.WIDTH,
                     bitmap.HEIGHT,
                     ili9342c.BLACK)
 
-                man.move()
-
-                if man.x > 0:
-                    tft.bitmap(bitmap, man.x, man.y)
-                else:
-                    tft.fill_rect(
-                        0,
-                        man.y,
-                        bitmap.WIDTH,
-                        bitmap.HEIGHT,
-                        ili9342c.BLACK)
-
-            time.sleep(0.05)
-
-    finally:
-        # shutdown spi
-        if 'spi' in locals():
-            spi.deinit()
+            await uasyncio.sleep(0.05)
 
 
-main()

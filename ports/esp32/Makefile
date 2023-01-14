@@ -24,7 +24,8 @@ PYTHON ?= python3
 # For now just force the submodule dependencies here.
 GIT_SUBMODULES += lib/berkeley-db-1.xx lib/micropython-lib
 
-.PHONY: all clean deploy erase submodules FORCE
+.PHONY: all clean deploy erase submodules FORCE lint \
+        bootloader-flash erase_flash erase_otadata size size-components size-files
 
 CMAKE_ARGS =
 
@@ -61,19 +62,31 @@ deploy:
 flash erase bootloader-flash erase_flash erase_otadata size size-components size-files:
 	idf.py $(IDFPY_FLAGS) --port $(PORT) --baud $(BAUD) $@
 
+lint:
+	flake8 --select=F,E999 --ignore= lfs-root/
+
 PART_CSV = $(shell awk  -F '"' '/^CONFIG_PARTITION_TABLE_FILENAME=/ {print $$2}' $(BUILD)/sdkconfig)
 VFS_SIZE = $(shell awk -F , '/^vfs/ {print $$5}' $(PART_CSV))
 VFS_OFFSET = $(shell awk -F , '/^vfs/ {print $$4}' $(PART_CSV))
-flashfs:
+flashfs: lint
 	# Partition table hardcoded for now (partitions-custom.csv)
 	mklittlefs -s $(VFS_SIZE) -c lfs-root $(BUILD)/lfs.bin
 	esptool.py --port $(PORT) --baud $(BAUD) write_flash $(VFS_OFFSET) $(BUILD)/lfs.bin
+
+app-flash: flashfs
 
 monitor:
 	idf_monitor.py --port $(PORT) --eol CRLF $(BUILD)/micropython.elf
 
 mon:
-	python -m serial.tools.miniterm --rts 0 --dtr 0 --raw $(PORT) 115200
+	python -m serial.tools.miniterm --raw $(PORT) 115200
+	#python -m serial.tools.miniterm --rts 0 --dtr 0 --raw $(PORT) 115200
+
+mpremote:
+	mpremote connect port:$(PORT)
+
+shell:
+	rshell --port $(PORT)
 
 submodules:
 	$(MAKE) -f ../../py/mkrules.mk GIT_SUBMODULES="$(GIT_SUBMODULES)" submodules
