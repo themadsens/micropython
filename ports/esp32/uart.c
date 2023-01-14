@@ -99,6 +99,7 @@ STATIC void IRAM_ATTR uart_irq_handler(void *arg) {
         } else {
             // this is an inline function so will be in IRAM
             ringbuf_put(&stdin_ringbuf, c);
+            mp_hal_wake_main_task_from_isr();
         }
     }
 }
