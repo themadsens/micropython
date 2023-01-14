@@ -168,6 +168,7 @@ soft_reset:
         if (ret & PYEXEC_FORCED_EXIT) {
             goto soft_reset_exit;
         }
+        MICROPY_READLINE_INIT_HOOK
     }
 
     for (;;) {
