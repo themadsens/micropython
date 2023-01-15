@@ -62,6 +62,9 @@
 [submodule "ports/esp32/ili9342c_mpy"]
 	path = ports/esp32/ili9342c_mpy
 	url = git@github.com:themadsens/ili9342c_mpy.git
+	branch = mpy-sparse-types
 [submodule "ports/esp32/micropython-png"]
 	path = ports/esp32/micropython-png
 	url = https://github.com/Ratfink/micropython-png.git
+[submodule "ports/esp32/ili9342c_mpy/"]
+	branch = mpy-sparse-types
