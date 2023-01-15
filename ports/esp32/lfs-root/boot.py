@@ -25,12 +25,10 @@ def defuart():
     return
 
 def _main():
-    #from inisetup import install_async_hook
-    #install_async_hook()
+    from inisetup import install_async_hook
+    install_async_hook()
+
     import fm_board
-
-    esp32.set_event_poll_hook(fm_board.async_hook)
-
     esp32.set_readline_hooks(fm_board.rl_init, fm_board.rl_append)
 
     print("Imported sys,os,machine,io,esp,esp32 for you\n\n")

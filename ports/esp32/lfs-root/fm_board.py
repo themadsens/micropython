@@ -1,5 +1,5 @@
 import os
-import asyncio
+import uasyncio as asyncio
 import hw
 
 _btnPrev = [1, 1, 1]

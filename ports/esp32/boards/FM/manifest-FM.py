@@ -1,14 +1,5 @@
 freeze("$(PORT_DIR)/modules")
 freeze("$(PORT_DIR)/modules-FM")
-freeze("$(MPY_DIR)/tools", ("upip.py", "upip_utarfile.py"))
-freeze("$(MPY_DIR)/ports/esp8266/modules", "ntptime.py")
-freeze("$(MPY_DIR)/drivers/dht", "dht.py")
-freeze("$(MPY_DIR)/drivers/onewire")
-
-freeze("$(PORT_DIR)/micropython-nano-gui", "gui")
-freeze("$(PORT_DIR)/micropython-nano-gui/drivers/ili93xx", ("ili9341.py"))
 
 freeze("$(PORT_DIR)/MicroWebSrv/", ("microWebSrv.py", "microWebTemplate.py", "microWebSocket.py"))
 include("$(MPY_DIR)/extmod/uasyncio/manifest.py")
-include("$(MPY_DIR)/extmod/webrepl/manifest.py")
-include("$(MPY_DIR)/drivers/neopixel/manifest.py")

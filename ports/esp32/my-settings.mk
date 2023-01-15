@@ -1,4 +1,4 @@
 
 BOARD = FM
-PORT = /dev/cu.usbserial-02041BF6
+PORT = /dev/ttyUSB0
 BAUD = 921600
