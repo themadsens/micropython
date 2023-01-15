@@ -218,6 +218,8 @@ STATIC mp_obj_t esp32_idf_heap_info(const mp_obj_t cap_in) {
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(esp32_idf_heap_info_obj, esp32_idf_heap_info);
 
+MP_REGISTER_ROOT_POINTER(mp_obj_t readline_hook_init_func);
+MP_REGISTER_ROOT_POINTER(mp_obj_t readline_hook_push_func);
 STATIC mp_obj_t esp32_set_readline_hooks(size_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
     enum {ARG_init, ARG_append};
     const mp_arg_t allowed_args[] = {
@@ -249,7 +251,6 @@ STATIC mp_obj_t esp32_set_event_poll_hook(const mp_obj_t event_poll_hook) {
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(esp32_set_event_poll_hook_obj, esp32_set_event_poll_hook);
 
 // Supposedly restore persisted history
-MP_REGISTER_ROOT_POINTER(mp_obj_t esp32_readline_init_hook);
 void esp32_readline_init_hook(void) {
     if (MP_STATE_PORT(readline_hook_init_func) && MP_STATE_PORT(readline_hook_init_func) != mp_const_none) {
         nlr_buf_t nlr;
@@ -278,7 +279,6 @@ void esp32_readline_init_hook(void) {
 }
 
 // Append to (persisted) history
-MP_REGISTER_ROOT_POINTER(mp_obj_t esp32_readline_push_hook);
 void esp32_readline_push_hook(void) {
     static const char *prev_hist = NULL;
     const char *s = MP_STATE_PORT(readline_hist)[0];
