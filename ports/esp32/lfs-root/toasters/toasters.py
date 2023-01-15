@@ -76,5 +76,3 @@ async def run_asynch(dpy):
                     ili9342c.BLACK)
 
             await uasyncio.sleep(0.05)
-
-

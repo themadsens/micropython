@@ -61,11 +61,7 @@
 	url = https://github.com/jczic/MicroWebSrv.git
 [submodule "ports/esp32/ili9342c_mpy"]
 	path = ports/esp32/ili9342c_mpy
-	url = https://github.com/russhughes/ili9342c_mpy.git
+	url = git@github.com:themadsens/ili9342c_mpy.git
 [submodule "ports/esp32/micropython-png"]
 	path = ports/esp32/micropython-png
 	url = https://github.com/Ratfink/micropython-png.git
-[submodule "ports/esp32/micropython-lib"]
-	path = ports/esp32/micropython-lib
-[submodule "ili9342c_mpy"]
-	url = git@github.com:themadsens/ili9342c_mpy.git
