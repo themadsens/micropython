@@ -2,33 +2,30 @@ import os
 import uasyncio as asyncio
 import hw
 
-_btnPrev = [1, 1, 1]
-_asyncHooks = []
-_btnHooks = [[], [], []]
-async def loop_coro():
-    for i in range(3):
-        cur = hw.btn[i]()
-        if cur != _btnPrev[i]:
-            for handler in _btnHooks[i]: handler[i](cur, i)
-            _btnPrev[i] = cur
-
-    for handler in _asyncHooks:
-        handler()
-
-    await asyncio.sleep_ms(10)
-
-def addAsyncJob(handler):
-    _asyncHooks.append(handler)
+btnPrev = [1, 1, 1]
+btnHooks = [[], [], []]
+btnCount = 0
+async def task_btns():
+    global btnCount
+    while True:
+        for i in range(3):
+            cur = hw.btn[i]()
+            if cur != btnPrev[i]:
+                for handler in btnHooks[i]: handler(cur, i)
+                btnPrev[i] = cur
+        btnCount += 1
+        await asyncio.sleep_ms(15)
+    return
 
 def addButtonHandler(i, handler):
-    _btnHooks[i].append(handler)
+    btnHooks[i].append(handler)
 
-_btnTask = None
-def poll_buttons(_):
-    global _btnTask
-    if _btnTask: return
+btnTask = None
+def poll_buttons():
+    global btnTask
+    if btnTask: return
 
-    _btnTask = asyncio.run(loop_coro())
+    btnTask = asyncio.create_task(task_btns())
     return
 
 def rl_init():

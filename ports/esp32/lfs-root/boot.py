@@ -1,14 +1,15 @@
-import sys, os, machine, uos, io, esp, esp32  # noqa
+import sys, os, time, machine, uos, io, esp, esp32  # noqa
 from upysh import *  # noqa
 from esp_util import *  # noqa
 from os import path
 import uasyncio
 import hw
+import fm_board
 
 def toasters():
-    hw.open_dpy()
+    dpy = hw.open_dpy()
     from toasters.toasters import run_asynch
-    uasyncio.create_task(run_asynch(hw.dpy))
+    uasyncio.create_task(run_asynch(dpy))
     return
 
 def aclock():
@@ -28,12 +29,13 @@ def _main():
     from inisetup import install_async_hook
     install_async_hook()
 
-    import fm_board
     esp32.set_readline_hooks(fm_board.rl_init, fm_board.rl_append)
+    fm_board.poll_buttons()
 
-    print("Imported sys,os,machine,io,esp,esp32 for you\n\n")
+    print("Imported sys,os,time,machine,io,esp,esp32 for you\n\n")
 
     if path.exists('boatmon'):
+        global boatmon
         from boatmon import boatmon
         boatmon.start()
 

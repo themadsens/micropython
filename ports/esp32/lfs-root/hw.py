@@ -6,7 +6,7 @@ def open_dpy():
     import ili9342c as ili9342c
     global dpy
     if dpy: 
-        return
+        return dpy
 
     # initialize display
     try:
@@ -28,7 +28,7 @@ def open_dpy():
         # shutdown spi
         if 'spi' in locals():
             spi.deinit()
-    return
+    return dpy
 
 def _init():
     from machine import Pin, Signal, I2C, UART
