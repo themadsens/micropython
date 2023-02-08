@@ -20,6 +20,7 @@ def open_dpy():
                                 buffer_size = 64*64*2)
 
         # enable display and clear screen
+        dpy.hard_reset()
         dpy.init()
         dpy.fill(ili9342c.BLACK)
         return dpy
@@ -35,9 +36,9 @@ def _init():
 
     global btn, i2c, gps1, gps2, led1, led2
     i2c = I2C(0, scl=Pin(22), sda=Pin(21), freq=42000)
-    gps1 = UART(1, baudrate=9600, tx=17, rx=16)
-    gps2 = UART(2, baudrate=9600, tx=5, rx=2)
-    led1 = Signal(Pin(25, Pin.OUT))
+    gps1 = UART(2, baudrate=9600, tx=18, rx=2)
+    gps2 = UART(1, baudrate=38400, tx=17, rx=16)
+    led1 = Signal(Pin(5, Pin.OUT))
     led2 = Signal(Pin(26, Pin.OUT))
     btn = [
         Pin(39, Pin.IN),

@@ -79,10 +79,12 @@ monitor:
 	idf_monitor.py --port $(PORT) --eol CRLF $(BUILD)/micropython.elf
 
 mon:
+	stty -F $(PORT) -hupcl
 	python -m serial.tools.miniterm --raw $(PORT) 115200
 	#python -m serial.tools.miniterm --rts 0 --dtr 0 --raw $(PORT) 115200
 
 mpremote:
+	stty -F $(PORT) -hupcl # https://unix.stackexchange.com/a/238456/185325
 	mpremote connect port:$(PORT)
 
 shell:

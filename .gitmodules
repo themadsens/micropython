@@ -68,3 +68,6 @@
 	url = https://github.com/Ratfink/micropython-png.git
 [submodule "ports/esp32/ili9342c_mpy/"]
 	branch = mpy-sparse-types
+[submodule "ports/esp32/micropyGPS"]
+	path = ports/esp32/micropyGPS
+	url = https://github.com/inmcm/micropyGPS.git
