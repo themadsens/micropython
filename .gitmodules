@@ -66,8 +66,13 @@
 [submodule "ports/esp32/micropython-png"]
 	path = ports/esp32/micropython-png
 	url = https://github.com/Ratfink/micropython-png.git
-[submodule "ports/esp32/ili9342c_mpy/"]
-	branch = mpy-sparse-types
 [submodule "ports/esp32/micropyGPS"]
 	path = ports/esp32/micropyGPS
-	url = https://github.com/inmcm/micropyGPS.git
+	url = git@github.com:themadsens/micropyGPS.git
+	branch = ignore-talker
+[submodule "ports/esp32/micropython-bmp280"]
+	path = ports/esp32/micropython-bmp280
+	url = https://github.com/dafvid/micropython-bmp280.git
+[submodule "ports/esp32/pyb_ina219"]
+	path = ports/esp32/pyb_ina219
+	url = https://github.com/chrisb2/pyb_ina219.git

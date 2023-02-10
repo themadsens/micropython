@@ -3,8 +3,11 @@ import fm_board
 import hw
 import time
 import machine
+import logging
 import ili9342c as dpydrv
-from micropyGPS import MicropyGPS
+import bmp280 as bmp
+from ina219 import INA219
+from micropyNMEA import MicropyNMEA
 from font import vga2_16x32 as vga2, vga2_bold_16x16 as vga2sb
 from micropython import const
 
@@ -14,43 +17,103 @@ BAT = const(1)
 ENV = const(2)
 SAT = const(3)
 
-testCnt = 0
+runCnt = 0
 dpy, frame, CH, CHS, CW, DPYWID, DPYHEI = [None]*7
-gps = MicropyGPS()
-uartIn = []
 rtc = machine.RTC()
+bmp280 = None
+ina219 = None
 
+gps = MicropyNMEA()
+gpsIn = []
+def handleGPS():
+    global gpsIn, gps, ydnr
+    if hw.gps96.any() <= 0:
+        return
+
+    chunk = hw.gps96.read()
+    for b in chunk:
+        gps.update(chr(b))
+    lines = []
+    try:
+        lines = chunk.decode('ascii').split('\n')
+    except:
+        print("DECODE error", len(chunk), chunk)
+    if len(lines) > 1:
+        lines[0] = "".join(gpsIn) + lines[0]
+        gpsIn.clear()
+        while len(lines) > 1:
+            line = lines.pop(0)
+            if hw.btn[1]() == 0:
+                print(": " + line)
+            if gps.valid and (not ydnr.valid or time.ticks_ms() - ydnr.fix_time > 5000):
+                hw.ydnr.write(line + "\n")
+                if line[3:6] == "GLL": # $GPGLL Seems to be last in the batch
+                    frame.updateFields(gps)
+
+    if len(lines) > 0 and len(lines[0]) > 0:
+        gpsIn.append(lines[0])
+
+    if gps.timestamp != [0, 0, 0.0] and gps.date != (0, 0, 0):
+        dt = rtc.datetime()
+        DT = (gps.date[2] + 2000, gps.date[1], gps.date[0], dt[3]) + tuple(gps.timestamp[0:2]) + (int(gps.timestamp[2]),) + (dt[7],)
+        if DT != dt:
+            rtc.datetime(DT)
+
+    return
+
+ydnr = MicropyNMEA()
+ydnrIn = []
+def handleYDNR():
+    global ydnrIn, ydnr
+    if hw.ydnr.any() > 0:
+        chunk = hw.ydnr.read()
+        for b in chunk:
+            ydnr.update(chr(b))
+
+        lines = []
+        try:
+            lines = chunk.decode('ascii').split('\n')
+        except:
+            print("DECODE error", len(chunk), chunk)
+        if len(lines) > 1:
+            lines[0] = "".join(ydnrIn) + lines[0]
+            ydnrIn.clear()
+            while len(lines) > 1:
+                line = lines.pop(0)
+                if hw.btn[1]() == 0:
+                    print("#%s%s%s" % ((ydnr.valid and "|" or "-"),
+                                       (time.ticks_ms() - ydnr.fix_time < 5000 and "|" or "-"),
+                                       line))
+            if line[3:6] == "RMC" and ydnr.valid and time.ticks_ms() - ydnr.fix_time < 5000:
+                frame.updateFields(ydnr)
+        if len(lines) > 0 and len(lines[0]) > 0:
+            ydnrIn.append(lines[0])
+
+def handleI2C():
+    if frame.curFrame == ENV:
+        bmp280.normal_measure()
+        frame.updateFields(None)
+    elif frame.curFrame == BAT:
+        frame.updateFields(None)
+    if hw.btn[1]() == 42: # 0
+        print("Bus Current: %.3f mA" % ina219.current())
+        print("Voltage: %.3f V" % ina219.voltage())
+        print("Power: %.3f mW" % ina219.power())
+        print("Shunt voltage: %.3f mV" % ina219.shunt_voltage())
+
+lastCnt = 0
 async def main_coro():
-    global testCnt, uartIn, gps
+    global runCnt, lastCnt
+    hw.gps96.read()
+    hw.ydnr.read()
     while True:
         await uasyncio.sleep_ms(50)
-        if hw.gps1.any() > 0:
-            chunk = hw.gps1.read()
-            for b in chunk:
-                gps.update(chr(b))
-            if gps.valid:
-                dt = rtc.datetime()
-                DT = (gps.date[2] + 2000, gps.date[1], gps.date[0], dt[3]) + tuple(gps.timestamp[0:2]) + (int(gps.timestamp[2]),) + (dt[7],)
-                if DT != dt:
-                    rtc.datetime(DT)
-
-            lines = []
-            try:
-                lines = chunk.decode('ascii').split('\n')
-            except:
-                print("DECODE error", len(chunk), chunk)
-            if len(lines) > 1:
-                lines[0] = "".join(uartIn) + lines[0]
-                uartIn.clear()
-                while len(lines) > 1:
-                    line = lines.pop(0)
-                    if hw.btn[1]() == 0:
-                        print(": " + line)
-                if line[0:6] == "$GPGLL": #Seems to be last in the batch
-                    frame.updateFields(gps)
-            if len(lines[0]) > 0:
-                uartIn.append(lines[0])
-        testCnt += 1
+        handleGPS()
+        handleYDNR()
+        if runCnt - lastCnt > 20:
+            handleI2C()
+            lastCnt = runCnt
+        runCnt += 1
     return
 
 sleeping = False
@@ -73,7 +136,21 @@ def start():
     print("-- BoatMon - start")
     for i in range(3):
         fm_board.addButtonHandler(i, _btnChanged)
-    global dpy, frame, DPYWID, DPYHEI, CH, CHS, CW
+    global dpy, frame, DPYWID, DPYHEI, CH, CHS, CW, bmp280, ina219
+    bmp280 = bmp.BMP280(hw.i2c, use_case = bmp.BMP280_CASE_WEATHER)
+    bmp280.oversample(bmp.BMP280_OS_HIGH)
+    bmp280.temp_os = bmp.BMP280_TEMP_OS_2
+    bmp280.press_os = bmp.BMP280_PRES_OS_2
+    bmp280.standby = bmp.BMP280_STANDBY_250
+    bmp280.iir = bmp.BMP280_IIR_FILTER_2
+    bmp280.spi3w = bmp.BMP280_SPI3W_ON
+    bmp280.power_mode = bmp.BMP280_POWER_NORMAL
+
+    maxAmps = const(26.6667) # 50A / 75mV * 40mV
+    shuntOhms = const(0.0015) # 75mV / 50A
+    ina219 = INA219(shuntOhms, hw.i2c, max_expected_amps=maxAmps, log_level=logging.INFO)
+    ina219.configure(ina219.RANGE_16V, ina219.GAIN_1_40MV)
+
     dpy = hw.open_dpy()
     DPYWID = dpy.width()
     DPYHEI = dpy.height()
@@ -90,6 +167,7 @@ class Frame:
     def __init__(self):
         self.curFrame = 0
         self.curLine = 0
+        self.everyOther = False
 
     def shift(self, n):
         self.curFrame = (self.curFrame + n) % 4
@@ -109,11 +187,11 @@ class Frame:
             dpy.text(vga2, s, off + CW * x, 0, dpydrv.WHITE, dpydrv.BLUE)
 
     def drawNav(self):
-        self.line(b"Sog/Cog:  4.2k 190\xf8")
-        self.line(b"Aws/Awa:  6.1m 234\xf8")
-        self.line(b"Aws24h: 13.2m 12:34")
-        self.line(b"1h 4h:  11.2m 12.3m")
-        self.line(b"Depth:  12.3m")
+        self.line(b"Sog/Cog:   . k    \xf8")
+        self.line(b"Aws/Awa:   . m    \xf8")
+        self.line(b"Aws24h:   . m   :  ")
+        self.line(b"1h 4h:    . m   . m")
+        self.line(b"Depth:    . m")
         X,Y = (DPYWID - 7*CW+10, DPYHEI - CH - CHS - 2)
         dpy.rect(X, Y, 7*CW-15, CH, dpydrv.BLACK)
         Y += CH
@@ -121,19 +199,22 @@ class Frame:
 
     def drawBat(self):
         self.line(b" -- Batteries --  ")
-        self.line(b"House:  12.5V 17.4A")
+        self.line(b"House:    . V   . A")
         self.line(b"Start:  12.7V")
         self.line(b"Solar:  27.3V  3.1A")
 
     def drawEnv(self):
         self.line(b" -- Environment --  ")
-        self.line(b"Air temp:    22.3\xf8C")
-        self.line(b"Water temp:  17.4\xf8C")
-        self.line(b"Barometer:    943Hp")
+        self.line(b"Air temp:      . \xf8C")
+        self.line(b"Water temp:    . \xf8C")
+        self.line(b"Barometer:     . Hp")
 
     def drawSat(self):
-        self.curLine = 4
-        self.line(b"56\xf844.33N 13\xf844.33E")
+        self.line(b"        UT   :  :  ")
+        self.line(b"        DoP        ")
+        self.line(b"        Sat S/N #  ")
+        self.line(b"        ___________")
+        self.line(b"  \xf8  .      \xf8  .   ")
 
     def draw(self):
         self.curLine = 0
@@ -155,21 +236,58 @@ class Frame:
             self.drawEnv()
         elif self.curFrame == SAT:
             self.drawSat()
+        return
 
-    def updateFields(self, gps):
-        DT = time.localtime()
-        self.field("%02d:%02d" % (DT[3], DT[4]), 0, 15)
+    def updateFields(self, nmea):
+        if nmea:
+            DT = time.localtime()
+            self.field("%02d:%02d" % (DT[3], DT[4]), 0, 15)
+            sep = b":" if self.everyOther else b"\xf9"
+            self.field(sep, 0, 17)
+            self.everyOther = not self.everyOther
         if self.curFrame == NAV:
-            self.field("%4.1f" % (gps.speed[0]), 1, 9)
-            self.field("%03d" % (gps.course), 1, 15)
+            self.field("%4.1f" % (nmea.speed[0]), 1, 9)
+            self.field("%03d" % (nmea.course), 1, 15)
+            if nmea.relative_wind_speed:
+                self.field("%4.1f" % (nmea.relative_wind_speed), 2, 9)
+                relspd = abs(nmea.relative_wind_speed)
+                sign = " " if nmea.relative_wind_speed >= 0 else "-"
+                self.field("%s%03d" % (sign, relspd), 2, 14)
+            if nmea.depth_below_surface:
+                self.field("%5.1f" % (nmea.depth_below_surface), 5, 7)
+
         elif self.curFrame == BAT:
-            pass
+            self.field("%4.1f" % (ina219.voltage()), 2, 8)
+            curr = ina219.current() / 1000 * 1.9
+            self.field(("%5.2f" if curr < 9.9 else "%5.1f") % (curr,), 2, 13)
         elif self.curFrame == ENV:
-            pass
+            self.field("%4.1f" % (bmp280.temperature), 2, 13)
+            self.field("%6.1f" % (bmp280.pressure / 100), 4, 11)
+            if nmea and nmea.water_temperature:
+                self.field("%4.1f" % (nmea.water_temperature), 3, 13)
         elif self.curFrame == SAT:
-            self.field("%2d" % (gps.latitude[0]), 5, 0)
-            self.field("%05.2f" % (gps.latitude[1]), 5, 3)
-            self.field("%1s" % (gps.latitude[2]), 5, 8)
-            self.field("%3d" % (gps.longitude[0]), 5, 9)
-            self.field("%05.2f" % (gps.longitude[1]), 5, 13)
-            self.field("%1s" % (gps.longitude[2]), 5, 18)
+            self.field("%2d:%02d:%02d" % (nmea.timestamp[0], nmea.timestamp[1], nmea.timestamp[2]), 1, 11)
+            if nmea.hdop >= 99:
+                self.field("  ----  ", 2, 11)
+            else:
+                self.field("%4.1f %2dm" % (nmea.hdop, int(nmea.hdop * 5)), 2, 11)
+            self.field("%02d" % (nmea.satellites_in_use), 3, 17)
+
+            self.field("%2d" % (nmea.latitude[0]), 5, 0)
+            self.field("%05.2f" % (nmea.latitude[1]), 5, 3)
+            self.field("%1s" % (nmea.latitude[2]), 5, 8)
+            self.field("%3d" % (nmea.longitude[0]), 5, 9)
+            self.field("%05.2f" % (nmea.longitude[1]), 5, 13)
+            self.field("%1s" % (nmea.longitude[2]), 5, 18)
+
+            '''
+            if nmea.satellite_data:
+                buf = bm_utils.makeSatViewBM(nmea.satellite_data)
+                dpy.blit_buffer(buf, 4, CH + 4, 128, 128)
+            '''
+        return
+
+    def drawSatellites(self):
+        return
+
+    pass

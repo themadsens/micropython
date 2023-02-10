@@ -34,10 +34,10 @@ def open_dpy():
 def _init():
     from machine import Pin, Signal, I2C, UART
 
-    global btn, i2c, gps1, gps2, led1, led2
+    global btn, i2c, gps96, ydnr, led1, led2
     i2c = I2C(0, scl=Pin(22), sda=Pin(21), freq=42000)
-    gps1 = UART(2, baudrate=9600, tx=18, rx=2)
-    gps2 = UART(1, baudrate=38400, tx=17, rx=16)
+    gps96 = UART(2, baudrate=9600, tx=18, rx=2)
+    ydnr = UART(1, baudrate=38400, tx=17, rx=16)
     led1 = Signal(Pin(5, Pin.OUT))
     led2 = Signal(Pin(26, Pin.OUT))
     btn = [
