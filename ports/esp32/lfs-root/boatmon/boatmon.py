@@ -3,7 +3,6 @@ import fm_board
 import hw
 import time
 import machine
-import logging
 import ili9342c as dpydrv
 import bmp280 as bmp
 from ina219 import INA219
@@ -90,16 +89,11 @@ def handleYDNR():
             ydnrIn.append(lines[0])
 
 def handleI2C():
-    if frame.curFrame == ENV:
+    if bmp280 and frame.curFrame == ENV:
         bmp280.normal_measure()
         frame.updateFields(None)
-    elif frame.curFrame == BAT:
+    elif ina219 and frame.curFrame == BAT:
         frame.updateFields(None)
-    if hw.btn[1]() == 42: # 0
-        print("Bus Current: %.3f mA" % ina219.current())
-        print("Voltage: %.3f V" % ina219.voltage())
-        print("Power: %.3f mW" % ina219.power())
-        print("Shunt voltage: %.3f mV" % ina219.shunt_voltage())
 
 lastCnt = 0
 async def main_coro():
@@ -137,19 +131,27 @@ def start():
     for i in range(3):
         fm_board.addButtonHandler(i, _btnChanged)
     global dpy, frame, DPYWID, DPYHEI, CH, CHS, CW, bmp280, ina219
-    bmp280 = bmp.BMP280(hw.i2c, use_case = bmp.BMP280_CASE_WEATHER)
-    bmp280.oversample(bmp.BMP280_OS_HIGH)
-    bmp280.temp_os = bmp.BMP280_TEMP_OS_2
-    bmp280.press_os = bmp.BMP280_PRES_OS_2
-    bmp280.standby = bmp.BMP280_STANDBY_250
-    bmp280.iir = bmp.BMP280_IIR_FILTER_2
-    bmp280.spi3w = bmp.BMP280_SPI3W_ON
-    bmp280.power_mode = bmp.BMP280_POWER_NORMAL
+    try:
+        bmp280 = bmp.BMP280(hw.i2c, use_case = bmp.BMP280_CASE_WEATHER)
+        bmp280.oversample(bmp.BMP280_OS_HIGH)
+        bmp280.temp_os = bmp.BMP280_TEMP_OS_2
+        bmp280.press_os = bmp.BMP280_PRES_OS_2
+        bmp280.standby = bmp.BMP280_STANDBY_250
+        bmp280.iir = bmp.BMP280_IIR_FILTER_2
+        bmp280.spi3w = bmp.BMP280_SPI3W_ON
+        bmp280.power_mode = bmp.BMP280_POWER_NORMAL
+    except OSError:
+        print("Can not find bmp280 on i2c")
+        bmp280 = None
 
-    maxAmps = const(26.6667) # 50A / 75mV * 40mV
-    shuntOhms = const(0.0015) # 75mV / 50A
-    ina219 = INA219(shuntOhms, hw.i2c, max_expected_amps=maxAmps, log_level=logging.INFO)
-    ina219.configure(ina219.RANGE_16V, ina219.GAIN_1_40MV)
+    try:
+        maxAmps = const(26.6667) # 50A / 75mV * 40mV
+        shuntOhms = const(0.0015) # 75mV / 50A
+        ina219 = INA219(shuntOhms, hw.i2c, max_expected_amps=maxAmps)
+        ina219.configure(ina219.RANGE_16V, ina219.GAIN_1_40MV)
+    except OSError:
+        print("Can not find ina219 on i2c")
+        ina219 = None
 
     dpy = hw.open_dpy()
     DPYWID = dpy.width()
@@ -245,7 +247,7 @@ class Frame:
             sep = b":" if self.everyOther else b"\xf9"
             self.field(sep, 0, 17)
             self.everyOther = not self.everyOther
-        if self.curFrame == NAV:
+        if nmea and self.curFrame == NAV:
             self.field("%4.1f" % (nmea.speed[0]), 1, 9)
             self.field("%03d" % (nmea.course), 1, 15)
             if nmea.relative_wind_speed:
@@ -256,16 +258,16 @@ class Frame:
             if nmea.depth_below_surface:
                 self.field("%5.1f" % (nmea.depth_below_surface), 5, 7)
 
-        elif self.curFrame == BAT:
+        elif ina219 and self.curFrame == BAT:
             self.field("%4.1f" % (ina219.voltage()), 2, 8)
             curr = ina219.current() / 1000 * 1.9
             self.field(("%5.2f" if curr < 9.9 else "%5.1f") % (curr,), 2, 13)
-        elif self.curFrame == ENV:
+        elif bmp280 and self.curFrame == ENV:
             self.field("%4.1f" % (bmp280.temperature), 2, 13)
             self.field("%6.1f" % (bmp280.pressure / 100), 4, 11)
             if nmea and nmea.water_temperature:
                 self.field("%4.1f" % (nmea.water_temperature), 3, 13)
-        elif self.curFrame == SAT:
+        elif nmea and self.curFrame == SAT:
             self.field("%2d:%02d:%02d" % (nmea.timestamp[0], nmea.timestamp[1], nmea.timestamp[2]), 1, 11)
             if nmea.hdop >= 99:
                 self.field("  ----  ", 2, 11)
