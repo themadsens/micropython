@@ -62,8 +62,10 @@ deploy:
 flash erase bootloader-flash erase_flash erase_otadata size size-components size-files:
 	idf.py $(IDFPY_FLAGS) --port $(PORT) --baud $(BAUD) $@
 
-lint:
+flake8:
 	flake8 --select=F,E999 --ignore= lfs-root/
+lint:
+	ruff check --select F,E999 lfs-root/
 
 PART_CSV = $(shell awk  -F '"' '/^CONFIG_PARTITION_TABLE_FILENAME=/ {print $$2}' $(BUILD)/sdkconfig)
 VFS_SIZE = $(shell awk -F , '/^vfs/ {print $$5}' $(PART_CSV))

@@ -1,4 +1,4 @@
 BOARD = FM
-#PORT = /dev/ttyUSB0
-PORT = /dev/tty.usbserial-01DB9834
+PORT = /dev/ttyUSB0
 BAUD = 921600
+#BAUD = 15000000
