@@ -20,6 +20,7 @@ class MicropyNMEA(MicropyGPS):
 
     def gpvwr(self):
         # $YDVWR,140.9,R,12.4,N,6.4,M,22.9,K*54
+        # $YDVWR,103.4,R,11.8,N,6.1,M,21.8,K*56
         try:
             direction = float(self.gps_segments[1])
             direction *= -1 if self.gps_segments[2] == "L" else 1
@@ -27,51 +28,61 @@ class MicropyNMEA(MicropyGPS):
         except ValueError: pass
         else:
             self.relative_wind_speed = speed
-            self.relative_angle = direction
+            self.relative_wind_angle = direction
+            return True
+
         return
 
     def gpmda(self):
         # $YDMDA,,I,,B,,C,17.9,C,,,,C,279.5,T,275.5,M,14.0,N,7.2,M*2A
+        parsed = None
         try:
             value = float(self.gps_segments[3])
         except ValueError: pass
         else:
             self.barometric_pressure = value
+            parsed = True
 
         try:
             value = float(self.gps_segments[5])
         except ValueError: pass
         else:
             self.air_temperature = value
+            parsed = True
 
         try:
             value = float(self.gps_segments[7])
         except ValueError: pass
         else:
             self.water_temperature = value
+            parsed = True
 
         try:
             value = float(self.gps_segments[9])
         except ValueError: pass
         else:
             self.relative_humidity = value
+            parsed = True
 
         try:
             value = float(self.gps_segments[11])
         except ValueError: pass
         else:
             self.dew_point = value
+            parsed = True
 
         try:
             direction_true = float(self.gps_segments[13])
             direction_mag = float(self.gps_segments[15])
             speed_kts = float(self.gps_segments[17])
+            parsed = True
         except ValueError: pass
         else:
             self.true_wind_angle = (direction_true, direction_mag)
             self.true_wind_speed = speed_kts * 1852 / 3600
+            parsed = True
 
-        return
+        return parsed
 
     def gpmtw(self):
         # $YDMTW,17.9,C*01
@@ -80,6 +91,7 @@ class MicropyNMEA(MicropyGPS):
         except ValueError: pass
         else:
             self.water_temperature = value
+            return True
         return
 
     def gpdbt(self):
@@ -89,6 +101,7 @@ class MicropyNMEA(MicropyGPS):
         except ValueError: pass
         else:
             self.depth_below_transducer = value
+            return True
         return
 
     def gpdbs(self):
@@ -98,6 +111,7 @@ class MicropyNMEA(MicropyGPS):
         except ValueError: pass
         else:
             self.depth_below_surface = value
+            return True
         return
 
     def gpzda(self):
@@ -108,6 +122,7 @@ class MicropyNMEA(MicropyGPS):
         except ValueError: pass
         else:
             self.time_offset_minutes = hours * 60 + (mins * 1 if self.gps_segments[5][0] != "-" else -1)
+            return True
         return
 
     supported_sentences = MicropyGPS.supported_sentences | {
