@@ -1,0 +1,1 @@
+../../../lib/micropython-lib/python-stdlib/functools/functools.py

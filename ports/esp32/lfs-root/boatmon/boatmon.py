@@ -5,8 +5,10 @@ import time
 import machine
 import bmp280 as bmp
 from array import array
+from functools import reduce
 from math import sin, cos, pi
-from ina219 import INA219
+#from ina219 import INA219
+from ina3221 import INA3221_I2C
 from micropyNMEA import MicropyNMEA
 from font import vga2_16x32 as vga2, vga2_bold_16x16 as vga2sb, vga2_6x13, vga1_4x6 #, vga2_9x14
 from micropython import const
@@ -31,11 +33,14 @@ _SAT = const(3)
 _DEPTHWID = const(100)
 _DEPTHHEI = const(40)
 
+_BAROWID = const(240)
+_BAROHEI = const(40)
+
 runCnt = 0
 dpy, frame, CH, CHS, CW, DPYWID, DPYHEI = [None]*7
 rtc = machine.RTC()
 bmp280 = None
-ina219 = None
+ina3221 = None
 
 gps = MicropyNMEA()
 gpsIn = []
@@ -58,7 +63,7 @@ def handleGPS():
         gpsIn.clear()
         while len(lines) > 1:
             line = lines.pop(0)
-            printLine(line, ": ")
+            #printLine(line, ": ")
             if gps.valid and (not ydnr.valid or time.ticks_ms() - ydnr.fix_time > 5000):
                 hw.ydnr.write(line + "\n")
                 if line[3:6] == "GLL": # $GPGLL Seems to be last in the batch
@@ -77,36 +82,52 @@ def handleGPS():
     pass
 
 ydnr = MicropyNMEA()
-ydnrIn = []
 def handleYDNR():
-    global ydnrIn, ydnr
+    global ydnr
     if hw.ydnr.any() > 0:
         chunk = hw.ydnr.read()
         for b in chunk:
             parsed = ydnr.update(chr(b))
-            if parsed and parsed[2:] == "VWR":
-                maxWind.update(ydnr.relative_wind_speed, ydnr.relative_wind_angle, time.localtime())
-                frame.updateFields(wind = maxWind)
-
-
-        lines = []
-        try:
-            lines = chunk.decode('ascii').split('\n')
-        except:
-            print("DECODE error", len(chunk), chunk)
-        if len(lines) > 1:
-            lines[0] = "".join(ydnrIn) + lines[0]
-            ydnrIn.clear()
-            while len(lines) > 1:
-                line = lines.pop(0)
+            if parsed:
                 pfx = "#%s%s" % ((ydnr.valid and "|" or "-"),
                                  (time.ticks_ms() - ydnr.fix_time < 5000 and "|" or "-"))
-                printLine(line, pfx)
-            if line[3:6] == "RMC" and ydnr.valid and time.ticks_ms() - ydnr.fix_time < 5000:
-                frame.updateFields(nmea = ydnr)
-        if len(lines) > 0 and len(lines[0]) > 0:
-            ydnrIn.append(lines[0])
+                printLine(','.join(ydnr.gps_segments), pfx)
+                if parsed[2:] == "VWR":
+                    maxWind.update(ydnr.relative_wind_speed, ydnr.relative_wind_angle, time.localtime())
+                    frame.updateFields(wind = maxWind)
+                    ydnrWriteST(makeSTWindAngle(ydnr))
+                    ydnrWriteST(makeSTWindSpeed(ydnr))
+                if  parsed[2:] == "RMC" and ydnr.valid and time.ticks_ms() - ydnr.fix_time < 5000:
+                    frame.updateFields(nmea = ydnr)
+                    ydnrWriteST(makeSTSpeed(ydnr))
+                    ydnrWriteST(makeSTDepth(ydnr))
     pass
+
+def ydnrWriteST(bytes):
+    if bytes:
+        line = "STALK," + ",".join(map(lambda b: "%02X" % b, bytes))
+        cksum = reduce(lambda a,b: a^b, map(lambda c: ord(c), line), 0)
+        line = "$%s*%02X" % (line, cksum)
+        hw.ydnr.write(line + "\r\n")
+    pass
+
+# See http://www.thomasknauf.de/rap/seatalk2.htm
+def makeSTWindAngle(nmea):
+    if nmea.relative_wind_angle is None: return None
+    halfDegs = round(((nmea.relative_wind_angle + 360) % 360) * 2)
+    return (0x10, 0x01, halfDegs >> 8, halfDegs & 0xff)
+def makeSTWindSpeed(nmea):
+    if nmea.relative_wind_speed is None: return None
+    kts10 = round(nmea.relative_wind_speed * 36_000 / 1852)
+    return (0x11, 0x01, 0x80 | ((kts10 // 10) & 0x7f), kts10 % 10)
+def makeSTSpeed(nmea):
+    if nmea.speed is None: return None
+    kts10 = round(nmea.speed[0] * 10)
+    return (0x52, 0x01, kts10 & 0xff, kts10 >> 8)
+def makeSTDepth(nmea):
+    if nmea.depth_below_surface is None: return None
+    feet10 = round(nmea.depth_below_surface * 32.8084)
+    return (0x00, 0x02, 0x60, feet10 & 0xff, feet10 >> 8)
 
 def simulate(fname=None):
     def simu_coro():
@@ -129,11 +150,18 @@ def simulate(fname=None):
         pass
     uasyncio.create_task(simu_coro())
 
+g_baro6m = -1
 def handleI2C():
-    if bmp280 and frame.curFrame == _ENV:
+    global g_baro6m
+    if bmp280:
         bmp280.normal_measure()
+        baro6m = time.ticks_ms() // 360_000
+        if baro6m != g_baro6m:
+            baros.update(round(bmp280.pressure / 100) - 850)
+            g_baro6m = baro6m
+    if bmp280 and frame.curFrame == _ENV:
         frame.updateFields(None)
-    elif ina219 and frame.curFrame == _BAT:
+    elif ina3221 and frame.curFrame == _BAT:
         frame.updateFields(None)
     pass
 
@@ -153,19 +181,22 @@ async def main_coro():
     pass
 
 sleeping = False
-btnDown = [0,0,0]
+btnDownTs = [0,0,0]
+btnDown   = [False,False,False]
 scroll = 0
 def _btnChanged(state, btn):
-    global sleeping, btnDown, scroll
+    global sleeping, btnDownTs, btnDown, scroll
 
     print("Button changed %s now %s frame %s" % (btn, state, frame.curFrame))
+    btnDown[btn] = state == 0
     if state == 0:
-        btnDown[btn] = time.ticks_ms()
+        btnDownTs[btn] = time.ticks_ms()
     if state == 0 and (btn == 0 or btn == 2):
         frame.shift(-1 if btn == 0 else 1)
-    elif state == 1 and btn == 1 and time.ticks_ms() - btnDown[1] < 500 and frame.curFrame != _SAT:
+    elif state == 1 and btn == 1 and time.ticks_ms() - btnDownTs[1] < 500 and frame.curFrame != _SAT:
         sleeping = not sleeping
         dpy.sleep_mode(sleeping)
+        hw.backlight.value(0 if sleeping else 1)
     elif state == 0 and btn == 1 and frame.curFrame == _SAT:
         dpy.fill_rect(0, CH, DPYWID, DPYHEI - CH - CHS, _BLACK)
         dpy.vscrdef(CH, DPYHEI - CH - CHS, CHS)
@@ -188,13 +219,13 @@ def printLine(line, pfx):
     return
 
 def midButton():
-    return hw.btn[1]() == 0
+    return btnDown[1]
 
 def start():
     print("-- BoatMon - start")
     for i in range(3):
         fm_board.addButtonHandler(i, _btnChanged)
-    global dpy, frame, maxWind, depths, DPYWID, DPYHEI, CH, CHS, CW, bmp280, ina219
+    global dpy, frame, maxWind, depths, baros, DPYWID, DPYHEI, CH, CHS, CW, bmp280, ina3221
     try:
         bmp280 = bmp.BMP280(hw.i2c, use_case = bmp.BMP280_CASE_WEATHER)
         bmp280.oversample(bmp.BMP280_OS_HIGH)
@@ -209,13 +240,14 @@ def start():
         bmp280 = None
 
     try:
-        maxAmps = const(26.6667) # 50A / 75mV * 40mV
+        #maxAmps = const(26.6667) # 50A / 75mV * 40mV
         shuntOhms = const(0.0015) # 75mV / 50A
-        ina219 = INA219(shuntOhms, hw.i2c, max_expected_amps=maxAmps)
-        ina219.configure(ina219.RANGE_16V, ina219.GAIN_1_40MV)
+        #ina219 = INA219(shuntOhms, hw.i2c, max_expected_amps=maxAmps)
+        ina3221 = INA3221_I2C(hw.i2c, shunt_resistor = shuntOhms)
+        #ina219.configure(ina219.RANGE_16V, ina219.GAIN_1_40MV)
     except OSError:
-        print("Can not find ina219 on i2c")
-        ina219 = None
+        print("Can not find ina3221 on i2c")
+        ina3221 = None
 
     dpy = hw.open_dpy()
     DPYWID = dpy.width()
@@ -225,7 +257,10 @@ def start():
     CW = vga2.WIDTH
     frame = Frame()
     maxWind = MaxWind()
-    depths = DepthLog()
+    depths = ValueLog(_DEPTHWID)
+    baros = ValueLog(_BAROWID, wtype='B')
+    for i in range(_BAROWID):
+        baros.update(1000 - 850)
     uasyncio.create_task(main_coro())
     frame.draw()
 
@@ -235,7 +270,10 @@ class Frame:
     def __init__(self):
         self.curFrame = 0
         self.curLine = 0
+        self.baroSec = -1
         self.everyOther = False
+        self.lastCurrentTs = -1
+        self.houseConsumption = 0
 
     def shift(self, n):
         self.curFrame = (self.curFrame + n) % 4
@@ -263,9 +301,10 @@ class Frame:
 
     def drawBat(self):
         self.line(b" -- Batteries --  ")
+        self.line(b"Consumed:    .   AH")
         self.line(b"House:    . V   . A")
-        self.line(b"Start:  12.7V")
-        self.line(b"Solar:  27.3V  3.1A")
+        self.line(b"Str/Sol:  . V   . A")
+        self.line(b"Bow:      . V")
 
     def drawEnv(self):
         self.line(b" -- Environment --  ")
@@ -310,11 +349,11 @@ class Frame:
             self.field(sep, 0, 17)
             self.everyOther = not self.everyOther
             if nmea.depth_below_surface:
-                depths.update(nmea.depth_below_surface)
+                depths.update(round(nmea.depth_below_surface * 100))
         if nmea and self.curFrame == _NAV:
             self.field("%4.1f" % (nmea.speed[0]), 1, 9)
             self.field("%03d" % (nmea.course), 1, 15)
-            self.field("%5.1f" % (depths.latest), 5, 7)
+            self.field("%5.1f" % (depths.latest / 100), 5, 7)
             self.depthLog()
 
         if wind and self.curFrame == _NAV:
@@ -327,17 +366,45 @@ class Frame:
             self.field("%4.1f" % (wind.windMax1H), 4, 8)
             self.field("%4.1f" % (wind.windMax4H), 4, 14)
 
-        elif ina219 and self.curFrame == _BAT:
-            self.field("%4.1f" % (ina219.voltage()), 2, 8)
-            curr = ina219.current() / 1000 * 1.9
-            self.field(("%5.2f" if curr < 9.9 else "%5.1f") % (curr,), 2, 13)
-        elif self.curFrame == _ENV:
+        if ina3221:
+            #self.field("%4.1f" % (ina219.voltage()), 2, 8)
+            houseV = ina3221.getBusVoltage(2) / 1000
+            
+            #curr = ina219.current() / 1000
+            curr = ina3221.getCurrent(2) / 1000 * 0.86
+            if houseV > 13.5:
+                self.houseConsumption = 0
+                self.lastCurrentTs = -1
+            elif self.lastCurrentTs < 0:
+                self.lastCurrentTs = time.ticks_ms()
+            else:
+                lastMs = self.lastCurrentTs
+                self.lastCurrentTs = time.ticks_ms()
+                diffMs = time.ticks_diff(self.lastCurrentTs, lastMs)
+                self.houseConsumption += curr * diffMs / 3600_000
+
+            if self.curFrame == _BAT:
+                self.field("%7.3f" % self.houseConsumption,             2, 10)
+                self.field("%4.1f" % houseV,                            3, 8)
+                self.field("%4.1f" % (ina3221.getBusVoltage(3) / 1000), 4, 8)
+                self.field("%4.1f" % (ina3221.getBusVoltage(1) / 1000), 5, 8)
+
+                self.field(("%5.2f" if curr < 9.9 else "%5.1f") % (curr,), 3, 13)
+                curr = ina3221.getCurrent(3) / 1000 * 0.86
+                self.field(("%5.2f" if curr < 9.9 else "%5.1f") % (curr,), 4, 13)
+
+        if self.curFrame == _ENV:
             if bmp280:
                 self.field("%4.1f" % (bmp280.temperature), 2, 13)
                 self.field("%6.1f" % (bmp280.pressure / 100), 4, 11)
+                baroSec = time.ticks_ms() // 30_000 * 10 + self.curFrame
+                if baroSec != self.baroSec:
+                    self.baroLog()
+                    self.baroSec = baroSec
             if nmea and nmea.water_temperature:
                 self.field("%4.1f" % (nmea.water_temperature), 3, 13)
-        elif nmea and self.curFrame == _SAT and not midButton():
+
+        if nmea and self.curFrame == _SAT and not midButton():
             self.field("%2d:%02d:%02d" % (nmea.timestamp[0], nmea.timestamp[1], nmea.timestamp[2]), 1, 11)
             if nmea.hdop >= 99:
                 self.field("  ----  ", 2, 11)
@@ -396,15 +463,34 @@ class Frame:
         dpy.fill_rect(X, Y, _DEPTHWID, _DEPTHHEI, _LLGRAY)
         minV = depths.min() / 100
         maxV = depths.max() / 100
-        rng = max(10, maxV - minV)
+        rng = max(2, maxV - minV)
         minV = max(0, maxV - rng)
         str = "%.1f - %.1fm" % (minV, minV + rng)
         dpy.text(vga2_6x13, str, X - len(str)*6 - 3, Y + _DEPTHHEI - 16, _BLACK, _LLGRAY)
-        vals = depths.getDepths()
+        vals = depths.getValues()
         for i in range(_DEPTHWID):
             hei = vals[i] / 100
             hei = int((hei - minV) / rng * _DEPTHHEI)
             dpy.vline(X + i, Y + _DEPTHHEI - hei, hei, _GRAY)
+        return
+
+    def baroLog(self):
+        X,Y = (DPYWID - _BAROWID - 2, DPYHEI - _BAROHEI - CHS - 2)
+        dpy.fill_rect(X, Y, _BAROWID, _BAROHEI, _LLGRAY)
+        minV = baros.min() + 850
+        maxV = baros.max() + 850
+        rng = max(2, maxV - minV)
+        minV = max(0, maxV - rng)
+        str = "%d - %d" % (minV, minV + rng)
+        dpy.text(vga2_6x13, str, X - len(str)*6 - 3, Y + _BAROHEI - 16, _BLACK, _LLGRAY)
+        vals = baros.getValues()
+        for i in range(_BAROWID):
+            hei = vals[i] + 850
+            hei = int((hei - minV) / rng * _BAROHEI)
+            dpy.vline(X + i, Y + _BAROHEI - hei, hei, _GRAY)
+        for i in range(0, 25):
+            hei = 10 if i % 6 == 0 else 5
+            dpy.vline(X + (_BAROWID // 24 * i), Y + _BAROHEI - hei, hei, _BLACK)
         return
 
     pass # end class
@@ -449,27 +535,28 @@ class MaxWind:
 
     pass
 
-class DepthLog:
-    def __init__(self):
-        self.depths = array('H', bytearray(_DEPTHWID*2))
+class ValueLog:
+    def __init__(self, wid, wtype='H'):
+        self.values = array(wtype, bytearray(wid * (2 if wtype == 'H' else 1)))
+        self.width = wid
         self.next = 0
         self.latest = 0
 
     def update(self, val):
         self.latest = val
-        self.depths[self.next] = int(val * 100)
-        self.next = (self.next + 1) % _DEPTHWID
+        self.values[self.next] = int(val)
+        self.next = (self.next + 1) % self.width
 
-    def getDepths(self):
+    def getValues(self):
         if next == 0:
-            return self.depths
-        return self.depths[self.next:] + self.depths[0:self.next]
+            return self.values
+        return self.values[self.next:] + self.values[0:self.next]
 
     def max(self):
-        return max(self.depths)
+        return max(self.values)
 
     def min(self):
-        return min(self.depths)
+        return min(self.values)
 
     pass
 
